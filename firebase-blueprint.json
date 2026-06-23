@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Report": {
+      "title": "Report",
+      "description": "Research reports written by researchers",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the research report" },
+        "subtitle": { "type": "string", "description": "Subheading or short teaser" },
+        "category": { "type": "string", "description": "Category of study (e.g. Equity Research)", "enum": ["Equity Research", "Biotech Strategy & Deals", "Macro & Markets"] },
+        "date": { "type": "string", "description": "Publication date in YYYY.MM.DD formatting" },
+        "author": { "type": "string", "description": "Original author credentials" },
+        "executiveSummary": { "type": "string", "description": "Executive summary paragraph" },
+        "keyThesis": { "type": "string", "description": "Core therapeutic or financial thesis" },
+        "riskOverview": { "type": "string", "description": "Potential pipeline or market risks" },
+        "valuationSnapshot": { "type": "string", "description": "Valuation metrics and target case details" },
+        "pdfUrl": { "type": "string", "description": "Download link to the PDF document stored in Firebase Storage" },
+        "imageUrl": { "type": "string", "description": "Link to the cover image" },
+        "order": { "type": "integer", "description": "Order placement coordinate for sorting" },
+        "isMainVisible": { "type": "boolean", "description": "Toggle to determine display on Home page" },
+        "sections": {
+          "type": "array",
+          "description": "Additional sub-sections with title and markdown content pairs"
+        }
+      },
+      "required": ["title", "category", "date", "author", "executiveSummary"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Active active research members",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Member Korean name" },
+        "cohort": { "type": "string", "description": "Group cohort tag (e.g., 1기, 2기)" },
+        "classOf": { "type": "string", "description": "Entry class year formatting e.g. 21학번" },
+        "role": { "type": "string", "description": "Member's leadership or specialized role" },
+        "imageUrl": { "type": "string", "description": "Link to the profile image of member" },
+        "order": { "type": "integer", "description": "Optional sorting index coordinates" }
+      },
+      "required": ["name", "cohort", "classOf"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Main global site configurations, recruitment links, and curriculum phases",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "description": "Dynamic web asset logo URL link" },
+        "recruitmentTitle": { "type": "string", "description": "Recruitment sub-header text" },
+        "recruitmentDate": { "type": "string", "description": "Applications window date range header" },
+        "recruitmentApplyUrl": { "type": "string", "description": "Outward apply button URL target link" },
+        "aboutContent": {
+          "type": "object",
+          "description": "About page details overrides"
+        },
+        "curriculumContent": {
+          "type": "object",
+          "description": "Curriculum phases details"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of all research reports"
+    },
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "Collection of active administrative and research members"
+    },
+    "/settings/{settingsId}": {
+      "schema": "SiteSettings",
+      "description": "Global layout settings overrides"
+    }
+  }
+}

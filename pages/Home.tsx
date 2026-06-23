@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
-import { ArrowDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowDown, FileText } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Report } from '../types';
 import { Logo } from '../components/Logo';
+import { ReportCover } from './Portfolio';
 
 const Home = () => {
   const [reports, setReports] = useState<Report[]>([]);
@@ -23,6 +22,8 @@ const Home = () => {
     };
     fetchReports();
   }, []);
+
+  const visibleReports = reports.filter(r => r.isMainVisible !== false);
 
   return (
     <div className="animate-in fade-in duration-1000">
@@ -78,38 +79,49 @@ const Home = () => {
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-2 border-brand-orange border-t-transparent rounded-full animate-spin"></div>
             </div>
+          ) : visibleReports.length === 0 ? (
+            <div className="text-center py-20 border border-dashed border-neutral-200 rounded-xl">
+              <p className="text-neutral-400 text-sm font-light uppercase tracking-widest">No featured reports at this time.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {reports.map((report) => (
+              {visibleReports.map((report) => (
                 <div 
                   key={report.id} 
-                  className="group block space-y-6"
+                  className="block space-y-6 bg-white border border-neutral-100/45 p-4 rounded-md shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
                 >
-                  <div className="relative aspect-[16/10] overflow-hidden bg-neutral-100 border border-neutral-100">
-                    {report.imageUrl ? (
-                      <img 
-                        src={report.imageUrl} 
-                        alt={report.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-neutral-300">
-                        <span className="text-[10px] tracking-widest uppercase">No Image</span>
-                      </div>
-                    )}
+                  <div className="relative aspect-[16/10] overflow-hidden bg-neutral-100 border border-neutral-100/60 rounded-sm">
+                    <ReportCover imageUrl={report.imageUrl} pdfUrl={report.pdfUrl} title={report.title} />
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-bold tracking-widest text-brand-orange uppercase">{report.category}</span>
                       <span className="text-[9px] font-mono text-neutral-300 tracking-widest">{report.date}</span>
                     </div>
-                    <h3 className="text-xl font-medium text-brand-charcoal leading-tight">
-                      {report.title}
-                    </h3>
-                    <p className="text-sm text-neutral-500 font-light line-clamp-2 leading-relaxed">
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-medium text-brand-charcoal leading-snug">
+                        {report.title}
+                      </h3>
+                      {report.subtitle && (
+                        <p className="text-xs text-neutral-400 font-light italic">{report.subtitle}</p>
+                      )}
+                    </div>
+                    <p className="text-sm text-neutral-500 font-light line-clamp-3 leading-relaxed">
                       {report.subtitle || report.executiveSummary}
                     </p>
+                    
+                    <div className="pt-4 border-t border-neutral-50 space-y-3">
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                        <span className="font-medium italic">Author: {report.author}</span>
+                      </div>
+                      {report.keyThesis && (
+                        <div className="bg-neutral-50/50 p-3 border border-neutral-100/30 rounded">
+                          <span className="text-[8px] font-bold tracking-wider uppercase text-brand-orange block mb-1">Key Investment Thesis</span>
+                          <p className="text-xs font-light text-neutral-600 line-clamp-2">{report.keyThesis}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -127,7 +139,7 @@ const Home = () => {
            </p>
            <div className="w-12 h-[1px] bg-neutral-200 mx-auto" />
            <p className="text-[9px] text-neutral-400 font-light uppercase tracking-widest">E.Phinance Institutional Archive</p>
-        </div>
+         </div>
       </section>
     </div>
   );

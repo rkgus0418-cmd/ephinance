@@ -5,7 +5,13 @@ import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const getEnv = (key: string) => {
-  return import.meta.env[key] || (process.env as any)[key];
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key] !== undefined) {
+    return import.meta.env[key];
+  }
+  if (typeof process !== 'undefined' && process.env && (process.env as any)[key] !== undefined) {
+    return (process.env as any)[key];
+  }
+  return undefined;
 };
 
 const firebaseConfig = {

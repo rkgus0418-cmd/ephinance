@@ -4,7 +4,7 @@ import { Report, Member } from '../types';
 import { 
   Plus, Edit, Trash2, Save, X, Upload, FileText, 
   ArrowUp, ArrowDown, Users, Settings, Layout, 
-  ChevronRight, ChevronDown, Lock, LogIn
+  Lock, LogIn
 } from 'lucide-react';
 
 const Admin: React.FC = () => {
@@ -20,7 +20,8 @@ const Admin: React.FC = () => {
     title: '', subtitle: '', category: 'Equity Research',
     date: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
     author: '', executiveSummary: '', keyThesis: '',
-    riskOverview: '', valuationSnapshot: '', sections: [{ title: '', content: '' }]
+    riskOverview: '', valuationSnapshot: '', sections: [{ title: '', content: '' }],
+    isMainVisible: true
   });
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -30,33 +31,13 @@ const Admin: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [isEditingMember, setIsEditingMember] = useState(false);
   const [currentMember, setCurrentMember] = useState<Partial<Member>>({
-    cohort: '1기', classOf: '', name: ''
+    cohort: '1기', classOf: '', name: '', role: ''
   });
+  const [memberImageFile, setMemberImageFile] = useState<File | null>(null);
+  const [memberImagePreview, setMemberImagePreview] = useState<string | null>(null);
 
   // Settings State
-  const [siteSettings, setSiteSettings] = useState<{ 
-    logoUrl?: string;
-    recruitmentTitle?: string;
-    recruitmentDate?: string;
-    recruitmentApplyUrl?: string;
-    aboutContent?: {
-      pipelineTitle?: string;
-      pipelineDesc?: string;
-      clinicalTitle?: string;
-      clinicalDesc?: string;
-      licensingTitle?: string;
-      licensingDesc?: string;
-      disciplineTitle?: string;
-      disciplineDesc?: string;
-    };
-    curriculumContent?: {
-      phases?: Array<{
-        title: string;
-        desc: string;
-        details: string;
-      }>;
-    };
-  }>({});
+  const [siteSettings, setSiteSettings] = useState<any>({});
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   
@@ -70,15 +51,19 @@ const Admin: React.FC = () => {
   }, [isAuthenticated]);
 
   const fetchData = async () => {
-    const [reportsData, membersData, settingsData] = await Promise.all([
-      dataService.getReports(),
-      dataService.getMembers(),
-      dataService.getSettings()
-    ]);
-    setReports(reportsData);
-    setMembers(membersData);
-    setSiteSettings(settingsData);
-    setLogoPreview(settingsData.logoUrl || null);
+    try {
+      const [reportsData, membersData, settingsData] = await Promise.all([
+        dataService.getReports(),
+        dataService.getMembers(),
+        dataService.getSettings()
+      ]);
+      setReports(reportsData);
+      setMembers(membersData);
+      setSiteSettings(settingsData);
+      setLogoPreview(settingsData.logoUrl || null);
+    } catch (error) {
+      console.error("Failed to load data for admin panel:", error);
+    }
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -111,7 +96,7 @@ const Admin: React.FC = () => {
       setIsEditingReport(false);
       resetReportForm();
       fetchData();
-      alert('Report saved!');
+      alert('Report saved successfully!');
     } catch (error) {
       alert('Error: ' + (error as Error).message);
     } finally {
@@ -145,7 +130,8 @@ const Admin: React.FC = () => {
       title: '', subtitle: '', category: 'Equity Research',
       date: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
       author: '', executiveSummary: '', keyThesis: '',
-      riskOverview: '', valuationSnapshot: '', sections: [{ title: '', content: '' }]
+      riskOverview: '', valuationSnapshot: '', sections: [{ title: '', content: '' }],
+      isMainVisible: true
     });
     setPdfFile(null);
     setImageFile(null);
@@ -155,17 +141,30 @@ const Admin: React.FC = () => {
   // --- Member Actions ---
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploading(true);
     try {
+      let imageUrl = currentMember.imageUrl;
+      if (memberImageFile) {
+        imageUrl = await dataService.uploadImage(memberImageFile);
+      }
+
+      const memberData = { ...currentMember, imageUrl };
+      
       if (currentMember.id) {
-        await dataService.updateMember(currentMember.id, currentMember);
+        await dataService.updateMember(currentMember.id, memberData);
       } else {
-        await dataService.addMember({ ...currentMember as Omit<Member, 'id'>, order: members.length });
+        await dataService.addMember({ ...memberData as Omit<Member, 'id'>, order: members.length });
       }
       setIsEditingMember(false);
-      setCurrentMember({ cohort: '1기', classOf: '', name: '' });
+      setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '' });
+      setMemberImageFile(null);
+      setMemberImagePreview(null);
       fetchData();
+      alert('Member information saved!');
     } catch (error) {
-      alert('Error saving member');
+      alert('Error saving member: ' + (error as Error).message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -184,10 +183,10 @@ const Admin: React.FC = () => {
       if (logoFile) logoUrl = await dataService.uploadImage(logoFile);
       
       await dataService.updateSettings({ ...siteSettings, logoUrl });
-      alert('Settings updated!');
-      window.location.reload();
+      alert('Settings updated successfully!');
+      fetchData();
     } catch (error) {
-      alert('Error saving settings');
+      alert('Error saving settings: ' + (error as Error).message);
     } finally {
       setUploading(false);
     }
@@ -222,6 +221,14 @@ const Admin: React.FC = () => {
     );
   }
 
+  // Group members into cohorts dynamically for administration
+  const membersByCohort = members.reduce((acc: { [key: string]: Member[] }, m) => {
+    if (!acc[m.cohort]) acc[m.cohort] = [];
+    acc[m.cohort].push(m);
+    return acc;
+  }, {});
+  const sortedAdminCohortKeys = Object.keys(membersByCohort).sort((a, b) => b.localeCompare(a));
+
   return (
     <div className="min-h-screen bg-neutral-50 flex">
       {/* Sidebar */}
@@ -233,25 +240,25 @@ const Admin: React.FC = () => {
         <nav className="flex-1 p-4 space-y-2">
           <button 
             onClick={() => setActiveTab('reports')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${activeTab === 'reports' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all text-left ${activeTab === 'reports' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
           >
             <Layout size={18} /> Research Reports
           </button>
           <button 
             onClick={() => setActiveTab('people')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${activeTab === 'people' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all text-left ${activeTab === 'people' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
           >
-            <Users size={18} /> People Management
+            <Users size={18} /> People & cohorts
           </button>
           <button 
             onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${activeTab === 'settings' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all text-left ${activeTab === 'settings' ? 'bg-brand-orange text-white' : 'text-neutral-400 hover:bg-white/5'}`}
           >
-            <Settings size={18} /> Site Settings
+            <Settings size={18} /> Site & Recruit Settings
           </button>
         </nav>
         <div className="p-8 text-[10px] text-neutral-600 uppercase tracking-widest border-t border-white/5">
-          v2.0.0 Stable
+          v2.1.0 Stable
         </div>
       </aside>
 
@@ -262,7 +269,7 @@ const Admin: React.FC = () => {
             <div className="flex justify-between items-end">
               <div>
                 <h1 className="text-3xl font-light tracking-tight">Research Reports</h1>
-                <p className="text-sm text-neutral-400">Manage and order your research archive</p>
+                <p className="text-sm text-neutral-400">Manage research portfolio posts</p>
               </div>
               <button 
                 onClick={() => { resetReportForm(); setIsEditingReport(true); }}
@@ -283,15 +290,15 @@ const Admin: React.FC = () => {
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Title</label>
-                      <input type="text" value={currentReport.title} onChange={(e) => setCurrentReport({...currentReport, title: e.target.value})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange" required />
+                      <input type="text" value={currentReport.title || ''} onChange={(e) => setCurrentReport({...currentReport, title: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange" required />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Subtitle</label>
-                      <input type="text" value={currentReport.subtitle} onChange={(e) => setCurrentReport({...currentReport, subtitle: e.target.value})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange" />
+                      <input type="text" value={currentReport.subtitle || ''} onChange={(e) => setCurrentReport({...currentReport, subtitle: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Category</label>
-                      <select value={currentReport.category} onChange={(e) => setCurrentReport({...currentReport, category: e.target.value as any})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange">
+                      <select value={currentReport.category} onChange={(e) => setCurrentReport({...currentReport, category: e.target.value as any})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange bg-white">
                         <option value="Equity Research">Equity Research</option>
                         <option value="Biotech Strategy & Deals">Biotech Strategy & Deals</option>
                         <option value="Macro & Markets">Macro & Markets</option>
@@ -299,30 +306,48 @@ const Admin: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Date</label>
-                      <input type="text" placeholder="YYYY.MM.DD" value={currentReport.date} onChange={(e) => setCurrentReport({...currentReport, date: e.target.value})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange" required />
+                      <input type="text" placeholder="YYYY.MM.DD" value={currentReport.date || ''} onChange={(e) => setCurrentReport({...currentReport, date: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange" required />
                     </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 bg-neutral-50 p-4 border border-neutral-100 rounded-lg">
+                    <input 
+                      type="checkbox" 
+                      id="isMainVisible" 
+                      checked={currentReport.isMainVisible !== false} 
+                      onChange={(e) => setCurrentReport({...currentReport, isMainVisible: e.target.checked})} 
+                      className="h-4 w-4 bg-white border-neutral-200 accent-brand-orange cursor-pointer" 
+                    />
+                    <label htmlFor="isMainVisible" className="text-xs font-semibold tracking-wide text-brand-charcoal cursor-pointer select-none">
+                      메인 페이지 노출 여부 (체크할 경우 메인 화면의 'Research Highlights'에 노출됩니다.)
+                    </label>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Author</label>
-                    <input type="text" value={currentReport.author} onChange={(e) => setCurrentReport({...currentReport, author: e.target.value})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange" required />
+                    <input type="text" value={currentReport.author || ''} onChange={(e) => setCurrentReport({...currentReport, author: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange" required />
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Executive Summary</label>
-                    <textarea value={currentReport.executiveSummary} onChange={(e) => setCurrentReport({...currentReport, executiveSummary: e.target.value})} className="w-full p-4 border border-neutral-100 outline-none focus:border-brand-orange h-32" required />
+                    <textarea value={currentReport.executiveSummary || ''} onChange={(e) => setCurrentReport({...currentReport, executiveSummary: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange h-32" required />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Key Investment Thesis</label>
+                    <textarea value={currentReport.keyThesis || ''} onChange={(e) => setCurrentReport({...currentReport, keyThesis: e.target.value})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange h-24" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-4">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Project Image</label>
-                      <label className="block w-full aspect-video border-2 border-dashed border-neutral-100 rounded-xl cursor-pointer hover:border-brand-orange transition-all overflow-hidden relative">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Project Image / Thumbnail Cover</label>
+                      <label className="block w-full aspect-video border-2 border-dashed border-neutral-200 rounded-xl cursor-pointer hover:border-brand-orange transition-all overflow-hidden relative">
                         {imagePreview ? (
                           <img src={imagePreview} className="w-full h-full object-cover" />
                         ) : (
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-300">
                             <Upload size={24} />
-                            <span className="text-[10px] mt-2 uppercase tracking-widest">Upload Image</span>
+                            <span className="text-[10px] mt-2 uppercase tracking-widest">Upload Cover Image</span>
                           </div>
                         )}
                         <input type="file" accept="image/*" onChange={(e) => {
@@ -337,10 +362,10 @@ const Admin: React.FC = () => {
                       </label>
                     </div>
                     <div className="space-y-4">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">PDF Document</label>
-                      <label className="block w-full p-12 border-2 border-dashed border-neutral-100 rounded-xl cursor-pointer hover:border-brand-orange transition-all text-center">
-                        <FileText className="mx-auto text-neutral-200 mb-2" size={32} />
-                        <span className="text-xs text-neutral-400">{pdfFile ? pdfFile.name : 'Click to upload PDF'}</span>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">PDF Document (or 1-Page PDF Cover)</label>
+                      <label className="block w-full p-12 border-2 border-dashed border-neutral-200 rounded-xl cursor-pointer hover:border-brand-orange transition-all text-center">
+                        <FileText className="mx-auto text-neutral-300 mb-2" size={32} />
+                        <span className="text-xs text-neutral-500 font-medium">{pdfFile ? pdfFile.name : currentReport.pdfUrl ? 'PDF Already Registered (Click to swap)' : 'Click to upload PDF'}</span>
                         <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
                     </div>
@@ -348,7 +373,7 @@ const Admin: React.FC = () => {
 
                   <div className="flex gap-4 pt-8">
                     <button type="submit" disabled={uploading} className="flex-1 bg-brand-charcoal text-white py-4 text-xs font-bold uppercase tracking-widest hover:bg-brand-orange transition-all disabled:opacity-50">
-                      {uploading ? 'Processing...' : 'Save Research'}
+                      {uploading ? 'Processing & Uploading...' : 'Save Research'}
                     </button>
                     <button type="button" onClick={() => setIsEditingReport(false)} className="px-12 border border-neutral-200 text-xs font-bold uppercase tracking-widest hover:bg-neutral-100">Cancel</button>
                   </div>
@@ -370,6 +395,11 @@ const Admin: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <span className="text-[9px] font-bold text-brand-orange uppercase tracking-widest">{report.category}</span>
                           <span className="text-[9px] text-neutral-300 font-mono">{report.date}</span>
+                          {report.isMainVisible !== false ? (
+                            <span className="text-[8px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-mono font-medium border border-green-100 uppercase tracking-widest">Main</span>
+                          ) : (
+                            <span className="text-[8px] bg-neutral-50 text-neutral-400 px-1.5 py-0.5 rounded font-mono font-medium border border-neutral-100 uppercase tracking-widest">Portfolio Only</span>
+                          )}
                         </div>
                         <h3 className="text-lg font-light text-brand-charcoal">{report.title}</h3>
                       </div>
@@ -389,11 +419,16 @@ const Admin: React.FC = () => {
           <div className="space-y-8">
             <div className="flex justify-between items-end">
               <div>
-                <h1 className="text-3xl font-light tracking-tight">People Management</h1>
-                <p className="text-sm text-neutral-400">Manage researchers by cohort</p>
+                <h1 className="text-3xl font-light tracking-tight">People & cohort Management</h1>
+                <p className="text-sm text-neutral-400">Add 기수(cohorts) and manage members dynamically</p>
               </div>
               <button 
-                onClick={() => { setCurrentMember({ cohort: '1기', classOf: '', name: '' }); setIsEditingMember(true); }}
+                onClick={() => { 
+                  setCurrentMember({ cohort: '3기', classOf: '', name: '', role: '', imageUrl: '' }); 
+                  setMemberImageFile(null);
+                  setMemberImagePreview(null);
+                  setIsEditingMember(true); 
+                }}
                 className="bg-brand-charcoal text-white px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-brand-orange transition-all"
               >
                 Add Member
@@ -403,61 +438,182 @@ const Admin: React.FC = () => {
             {isEditingMember && (
               <div className="bg-white p-8 border border-neutral-200 space-y-6">
                 <h2 className="text-lg font-light">{currentMember.id ? 'Edit Member' : 'New Member'}</h2>
-                <form onSubmit={handleSaveMember} className="grid grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Cohort (기수)</label>
-                    <input type="text" value={currentMember.cohort} onChange={(e) => setCurrentMember({...currentMember, cohort: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="예: 1기" required />
+                <form onSubmit={handleSaveMember} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Cohort (기수)</label>
+                      <input 
+                        type="text" 
+                        value={currentMember.cohort || ''} 
+                        onChange={(e) => setCurrentMember({...currentMember, cohort: e.target.value})} 
+                        className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" 
+                        placeholder="예: 3기" 
+                        required 
+                      />
+                      <p className="text-[9px] text-neutral-400">Create new cohort strings like "3기" or "4기" here</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Class Of (학번)</label>
+                      <input 
+                        type="text" 
+                        value={currentMember.classOf || ''} 
+                        onChange={(e) => setCurrentMember({...currentMember, classOf: e.target.value})} 
+                        className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" 
+                        placeholder="예: 21학번" 
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Name (이름)</label>
+                      <input 
+                        type="text" 
+                        value={currentMember.name || ''} 
+                        onChange={(e) => setCurrentMember({...currentMember, name: e.target.value})} 
+                        className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" 
+                        placeholder="예: 김약선"
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Role / Position (역할)</label>
+                      <input 
+                        type="text" 
+                        value={currentMember.role || ''} 
+                        onChange={(e) => setCurrentMember({...currentMember, role: e.target.value})} 
+                        className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" 
+                        placeholder="예: 회장, 리서치 부문장 (선택)" 
+                      />
+                    </div>
                   </div>
+
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Class Of (학번)</label>
-                    <input type="text" value={currentMember.classOf} onChange={(e) => setCurrentMember({...currentMember, classOf: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="예: 21학번" required />
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-neutral-400">Profile Image (프로필 이미지)</label>
+                    <div className="flex items-center gap-6 bg-neutral-50 p-4 border border-neutral-100 rounded">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-white border border-neutral-200 flex items-center justify-center flex-shrink-0">
+                        {memberImagePreview ? (
+                          <img src={memberImagePreview} className="w-full h-full object-cover" />
+                        ) : currentMember.imageUrl ? (
+                          <img src={currentMember.imageUrl} className="w-full h-full object-cover" />
+                        ) : (
+                          <Users size={24} className="text-neutral-300" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setMemberImageFile(file);
+                              const reader = new FileReader();
+                              reader.onload = () => setMemberImagePreview(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }} 
+                          className="text-xs text-neutral-500" 
+                        />
+                        <p className="text-[10px] text-neutral-400 mt-1">Recommended clear square format avatar shot</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Name</label>
-                    <input type="text" value={currentMember.name} onChange={(e) => setCurrentMember({...currentMember, name: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" required />
-                  </div>
-                  <div className="col-span-3 flex gap-4">
-                    <button type="submit" className="flex-1 bg-brand-charcoal text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-brand-orange transition-all">Save Member</button>
-                    <button type="button" onClick={() => setIsEditingMember(false)} className="px-8 border border-neutral-200 text-xs font-bold uppercase tracking-widest">Cancel</button>
+
+                  <div className="flex gap-4">
+                    <button type="submit" disabled={uploading} className="flex-1 bg-brand-charcoal text-white py-3 text-xs font-bold uppercase tracking-widest hover:bg-brand-orange transition-all disabled:opacity-50">
+                      {uploading ? 'Uploading & Saving...' : 'Save Member'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setIsEditingMember(false);
+                        setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '' });
+                      }} 
+                      className="px-8 border border-neutral-200 text-xs font-bold uppercase tracking-widest"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </form>
               </div>
             )}
 
-            <div className="bg-white border border-neutral-200 divide-y divide-neutral-100">
-              {members.map((member) => (
-                <div key={member.id} className="p-4 flex items-center justify-between group">
-                  <div className="flex items-center gap-8">
-                    <span className="text-xs font-bold text-brand-orange w-12">{member.cohort}</span>
-                    <span className="text-xs text-neutral-400 w-16">{member.classOf}</span>
-                    <span className="font-medium">{member.name}</span>
+            {/* Structured Cohorts Board */}
+            <div className="space-y-8">
+              {sortedAdminCohortKeys.map((cohortKey) => {
+                const list = membersByCohort[cohortKey];
+                return (
+                  <div key={cohortKey} className="bg-white border border-neutral-200 rounded-lg overflow-hidden">
+                    <div className="bg-neutral-50 border-b border-neutral-100 px-6 py-4 flex justify-between items-center">
+                      <h3 className="font-light text-brand-charcoal text-lg">
+                        {cohortKey} <span className="text-xs font-mono px-2 py-0.5 bg-brand-orange/10 text-brand-orange rounded-full ml-2">{list.length} Members</span>
+                      </h3>
+                    </div>
+                    <div className="divide-y divide-neutral-100">
+                      {list.map((member) => (
+                        <div key={member.id} className="p-4 px-6 flex items-center justify-between group">
+                          <div className="flex items-center gap-6">
+                            <div className="w-10 h-10 rounded-full overflow-hidden border border-neutral-100 bg-neutral-50 flex items-center justify-center">
+                              {member.imageUrl ? (
+                                <img src={member.imageUrl} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-xs font-semibold text-neutral-400">{member.name.charAt(0)}</span>
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-medium text-sm">{member.name}</span>
+                                <span className="text-[10px] text-neutral-400 font-mono italic">{member.classOf}</span>
+                                {member.role && (
+                                  <span className="text-[10px] font-bold text-brand-orange tracking-wider bg-brand-orange/5 px-2 py-0.5 rounded uppercase">{member.role}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => { 
+                                setCurrentMember(member); 
+                                setMemberImageFile(null);
+                                setMemberImagePreview(member.imageUrl || null);
+                                setIsEditingMember(true); 
+                              }} 
+                              className="p-2 text-neutral-400 hover:text-brand-charcoal transition-colors"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteMember(member.id)} 
+                              className="p-2 text-neutral-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setCurrentMember(member); setIsEditingMember(true); }} className="p-2 text-neutral-300 hover:text-brand-charcoal"><Edit size={16} /></button>
-                    <button onClick={() => handleDeleteMember(member.id)} className="p-2 text-neutral-300 hover:text-red-500"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-8 max-w-2xl">
+          <div className="space-y-8 max-w-3xl">
             <div>
-              <h1 className="text-3xl font-light tracking-tight">Site Settings</h1>
-              <p className="text-sm text-neutral-400">Global configuration and recruitment</p>
+              <h1 className="text-3xl font-light tracking-tight">System & Recruit Settings</h1>
+              <p className="text-sm text-neutral-400">Global site overrides, dynamic recruitment notices, and warning content</p>
             </div>
 
             <div className="bg-white p-8 border border-neutral-200 space-y-10">
               <div className="space-y-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">Brand Identity</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange border-b border-neutral-100 pb-2">Brand Identity</h3>
                 <div className="flex items-center gap-8">
-                  <div className="w-24 h-24 border border-neutral-100 flex items-center justify-center bg-neutral-50">
+                  <div className="w-24 h-24 border border-neutral-105 flex items-center justify-center bg-neutral-50">
                     {logoPreview ? <img src={logoPreview} className="max-w-full max-h-full p-2" /> : <Upload className="text-neutral-200" />}
                   </div>
                   <div className="flex-1 space-y-2">
-                    <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400">Main Logo</label>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-neutral-400">Main Logo File</label>
                     <input type="file" accept="image/*" onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
@@ -471,70 +627,43 @@ const Admin: React.FC = () => {
                 </div>
               </div>
 
+              {/* Dynamic Recruitment Text Area Fields */}
               <div className="space-y-6 pt-6 border-t border-neutral-100">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">Recruitment Section</h3>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange border-b border-neutral-100 pb-2">Recruitment Section Content (RECRUIT)</h3>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Recruitment Title</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Who We Look For Title</label>
+                    <input type="text" value={siteSettings.recruitSectionTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitSectionTitle: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="Defaults to: Who We Look For" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Admissions Guide Intro Text</label>
+                    <textarea value={siteSettings.recruitGuideNote || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitGuideNote: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-24" placeholder="Admissions introduction or guidelines details..." />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">모집 요강 (Requirements list - One requirement per line)</label>
+                    <textarea value={siteSettings.requirements || ''} onChange={(e) => setSiteSettings({...siteSettings, requirements: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-36 font-sans text-sm leading-relaxed" placeholder="이화여자대학교 약학대학 4,5학년 재학생&#10;숫자를 통해 기술을 해석하고 싶으신 분&#10;열정이 뛰어나신 분..." />
+                    <p className="text-[9px] text-neutral-400">Please enter each item on a separate line. They will automatically be rendered with bullets on the Recruit screen.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Recruitment Box Title</label>
                     <input type="text" value={siteSettings.recruitmentTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitmentTitle: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="예: 2026 Spring Cohort Recruitment" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Recruitment Date Info</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Recruitment Date Period</label>
                     <input type="text" value={siteSettings.recruitmentDate || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitmentDate: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="예: Feb 23 - Feb 27, 2026" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Apply URL</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Application URL Link</label>
                     <input type="text" value={siteSettings.recruitmentApplyUrl || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitmentApplyUrl: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="https://google.form/..." />
                   </div>
-                </div>
-              </div>
-
-              <div className="space-y-6 pt-6 border-t border-neutral-100">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">About Page Content</h3>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Pipeline Title</label>
-                      <input type="text" value={siteSettings.aboutContent?.pipelineTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), pipelineTitle: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Pipeline Description</label>
-                      <textarea value={siteSettings.aboutContent?.pipelineDesc || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), pipelineDesc: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-24" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Clinical Title</label>
-                      <input type="text" value={siteSettings.aboutContent?.clinicalTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), clinicalTitle: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Clinical Description</label>
-                      <textarea value={siteSettings.aboutContent?.clinicalDesc || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), clinicalDesc: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-24" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Licensing Title</label>
-                      <input type="text" value={siteSettings.aboutContent?.licensingTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), licensingTitle: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Licensing Description</label>
-                      <textarea value={siteSettings.aboutContent?.licensingDesc || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), licensingDesc: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-24" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Discipline Title</label>
-                      <input type="text" value={siteSettings.aboutContent?.disciplineTitle || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), disciplineTitle: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Discipline Description</label>
-                      <textarea value={siteSettings.aboutContent?.disciplineDesc || ''} onChange={(e) => setSiteSettings({...siteSettings, aboutContent: {...(siteSettings.aboutContent || {}), disciplineDesc: e.target.value}})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange h-32" />
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Footer Warning text</label>
+                    <input type="text" value={siteSettings.recruitFooterWarning || ''} onChange={(e) => setSiteSettings({...siteSettings, recruitFooterWarning: e.target.value})} className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" placeholder="Defaults to: * Late applications will not be considered." />
                   </div>
                 </div>
               </div>
 
+              {/* Dynamic Curriculum Phases Edit */}
               <div className="space-y-6 pt-6 border-t border-neutral-100">
                 <div className="flex justify-between items-center">
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">Curriculum Phases</h3>
@@ -550,7 +679,7 @@ const Admin: React.FC = () => {
                   </button>
                 </div>
                 <div className="space-y-8">
-                  {(siteSettings.curriculumContent?.phases || []).map((phase, idx) => (
+                  {(siteSettings.curriculumContent?.phases || []).map((phase: any, idx: number) => (
                     <div key={idx} className="p-4 border border-neutral-100 space-y-4 relative group">
                       <button 
                         onClick={() => {
@@ -566,7 +695,7 @@ const Admin: React.FC = () => {
                         <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-300">Phase Title</label>
                         <input 
                           type="text" 
-                          value={phase.title} 
+                          value={phase.title || ''} 
                           onChange={(e) => {
                             const phases = [...(siteSettings.curriculumContent?.phases || [])];
                             phases[idx].title = e.target.value;
@@ -580,7 +709,7 @@ const Admin: React.FC = () => {
                         <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-300">Description</label>
                         <input 
                           type="text" 
-                          value={phase.desc} 
+                          value={phase.desc || ''} 
                           onChange={(e) => {
                             const phases = [...(siteSettings.curriculumContent?.phases || [])];
                             phases[idx].desc = e.target.value;
@@ -594,7 +723,7 @@ const Admin: React.FC = () => {
                         <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-300">Details</label>
                         <input 
                           type="text" 
-                          value={phase.details} 
+                          value={phase.details || ''} 
                           onChange={(e) => {
                             const phases = [...(siteSettings.curriculumContent?.phases || [])];
                             phases[idx].details = e.target.value;
@@ -614,7 +743,7 @@ const Admin: React.FC = () => {
                 disabled={uploading}
                 className="w-full bg-brand-charcoal text-white py-4 text-xs font-bold uppercase tracking-widest hover:bg-brand-orange transition-all disabled:opacity-50"
               >
-                {uploading ? 'Updating Site...' : 'Update All Settings'}
+                {uploading ? 'Updating Site System Settings...' : 'Update All Settings'}
               </button>
             </div>
           </div>

@@ -8,6 +8,7 @@ const Navbar = () => {
     { label: 'ABOUT', path: '/about' },
     { label: 'CURRICULUM', path: '/curriculum' },
     { label: 'PEOPLE', path: '/people' },
+    { label: 'PORTFOLIO', path: '/portfolio' },
     { label: 'RECRUIT', path: '/recruit' },
   ];
 

@@ -15,6 +15,7 @@ export interface Report {
   pdfUrl?: string;
   imageUrl?: string;
   order?: number;
+  isMainVisible?: boolean;
   sections: {
     title: string;
     content: string;
@@ -26,6 +27,8 @@ export interface Member {
   cohort: string;
   classOf: string;
   name: string;
+  role?: string;
+  imageUrl?: string;
   order?: number;
 }
 

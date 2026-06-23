@@ -1,6 +1,4 @@
-
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 
 const Recruit = () => {
@@ -14,12 +12,16 @@ const Recruit = () => {
     fetchSettings();
   }, []);
 
-  const requirements = [
+  const defaultRequirements = [
     "이화여자대학교 약학대학 4,5학년 재학생",
     "숫자를 통해 기술을 해석하고 싶은신 분",
     "배우고자 하는 의지와 열정이 뛰어나신 분",
     "E.Phinance 네트워크 안에서 교류하고 싶으신 분"
   ];
+
+  const requirementsList = settings.requirements
+    ? settings.requirements.split('\n').map((item: string) => item.trim()).filter((item: string) => item !== '')
+    : defaultRequirements;
 
   return (
     <div className="animate-in fade-in duration-700 pb-32">
@@ -31,9 +33,18 @@ const Recruit = () => {
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-24 items-start">
         <section className="space-y-12">
           <div>
-            <h3 className="text-sm font-bold tracking-widest uppercase text-neutral-400 mb-8">Who We Look For</h3>
+            <h3 className="text-sm font-bold tracking-widest uppercase text-neutral-400 mb-8">
+              {settings.recruitSectionTitle || 'Who We Look For'}
+            </h3>
+            
+            {settings.recruitGuideNote && (
+              <p className="text-sm font-light text-neutral-500 mb-6 leading-relaxed whitespace-pre-wrap">
+                {settings.recruitGuideNote}
+              </p>
+            )}
+
             <ul className="space-y-6">
-              {requirements.map((req, i) => (
+              {requirementsList.map((req: string, i: number) => (
                 <li key={i} className="flex items-center space-x-4">
                   <div className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
                   <span className="text-base font-light text-brand-charcoal">{req}</span>
@@ -62,7 +73,7 @@ const Recruit = () => {
               Apply Now
             </button>
             <p className="text-[10px] text-neutral-400 uppercase tracking-widest italic">
-              * Late applications will not be considered.
+              {settings.recruitFooterWarning || '* Late applications will not be considered.'}
             </p>
           </div>
         </section>
