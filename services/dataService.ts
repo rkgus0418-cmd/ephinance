@@ -12,36 +12,12 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
-import { Report, Member } from '../types';
+import { Report, Member, SiteSettings } from '../types';
 import { REPORTS, MEMBERS } from '../data';
 
 const REPORTS_COLLECTION = 'reports';
 const MEMBERS_COLLECTION = 'members';
 const SETTINGS_COLLECTION = 'settings';
-
-interface SiteSettings {
-  logoUrl?: string;
-  recruitmentTitle?: string;
-  recruitmentDate?: string;
-  recruitmentApplyUrl?: string;
-  aboutContent?: {
-    pipelineTitle?: string;
-    pipelineDesc?: string;
-    clinicalTitle?: string;
-    clinicalDesc?: string;
-    licensingTitle?: string;
-    licensingDesc?: string;
-    disciplineTitle?: string;
-    disciplineDesc?: string;
-  };
-  curriculumContent?: {
-    phases?: Array<{
-      title: string;
-      desc: string;
-      details: string;
-    }>;
-  };
-}
 
 export const dataService = {
   async getReports(): Promise<Report[]> {
@@ -57,13 +33,8 @@ export const dataService = {
         return REPORTS;
       }
 
-      // Sort by order first, then by date desc
-      return results.sort((a, b) => {
-        if (a.order !== undefined && b.order !== undefined) {
-          return a.order - b.order;
-        }
-        return b.date.localeCompare(a.date);
-      });
+      // Sort by date desc (Reverse Chronological Order)
+      return results.sort((a, b) => b.date.localeCompare(a.date));
     } catch (e) {
       console.error("Firebase error", e);
       return REPORTS;

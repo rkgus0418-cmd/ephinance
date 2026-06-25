@@ -31,7 +31,7 @@ const Admin: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [isEditingMember, setIsEditingMember] = useState(false);
   const [currentMember, setCurrentMember] = useState<Partial<Member>>({
-    cohort: '1기', classOf: '', name: '', role: ''
+    cohort: '1기', classOf: '', name: '', role: '', statusTag: ''
   });
   const [memberImageFile, setMemberImageFile] = useState<File | null>(null);
   const [memberImagePreview, setMemberImagePreview] = useState<string | null>(null);
@@ -57,7 +57,13 @@ const Admin: React.FC = () => {
         dataService.getMembers(),
         dataService.getSettings()
       ]);
-      setReports(reportsData);
+      const sortedReports = [...reportsData].sort((a, b) => {
+        const orderA = a.order !== undefined ? a.order : 999999;
+        const orderB = b.order !== undefined ? b.order : 999999;
+        if (orderA !== orderB) return orderA - orderB;
+        return b.date.localeCompare(a.date);
+      });
+      setReports(sortedReports);
       setMembers(membersData);
       setSiteSettings(settingsData);
       setLogoPreview(settingsData.logoUrl || null);
@@ -156,7 +162,7 @@ const Admin: React.FC = () => {
         await dataService.addMember({ ...memberData as Omit<Member, 'id'>, order: members.length });
       }
       setIsEditingMember(false);
-      setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '' });
+      setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '', statusTag: '' });
       setMemberImageFile(null);
       setMemberImagePreview(null);
       fetchData();
@@ -227,7 +233,22 @@ const Admin: React.FC = () => {
     acc[m.cohort].push(m);
     return acc;
   }, {});
-  const sortedAdminCohortKeys = Object.keys(membersByCohort).sort((a, b) => b.localeCompare(a));
+
+  const getCohortNum = (cohort: string): number => {
+    const match = cohort.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
+  const sortedAdminCohortKeys = Object.keys(membersByCohort).sort((a, b) => getCohortNum(a) - getCohortNum(b));
+
+  const currentCategories = siteSettings.categories || [
+    { slug: 'Equity Research', name: 'Equity Research' },
+    { slug: 'Biotech Strategy & Deals', name: 'Biotech Strategy & Deals' },
+    { slug: 'Macro & Markets', name: 'Macro & Markets' },
+    { slug: 'open-study', name: 'Open Studies' }
+  ];
+
+  const uniqueCohorts = (Array.from(new Set(members.map(m => m.cohort))) as string[]).sort((a, b) => getCohortNum(a) - getCohortNum(b));
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
@@ -299,9 +320,9 @@ const Admin: React.FC = () => {
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Category</label>
                       <select value={currentReport.category} onChange={(e) => setCurrentReport({...currentReport, category: e.target.value as any})} className="w-full p-4 border border-neutral-150 outline-none focus:border-brand-orange bg-white">
-                        <option value="Equity Research">Equity Research</option>
-                        <option value="Biotech Strategy & Deals">Biotech Strategy & Deals</option>
-                        <option value="Macro & Markets">Macro & Markets</option>
+                        {currentCategories.map((cat: any) => (
+                          <option key={cat.slug} value={cat.name}>{cat.name}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-2">
@@ -439,7 +460,7 @@ const Admin: React.FC = () => {
               <div className="bg-white p-8 border border-neutral-200 space-y-6">
                 <h2 className="text-lg font-light">{currentMember.id ? 'Edit Member' : 'New Member'}</h2>
                 <form onSubmit={handleSaveMember} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Cohort (기수)</label>
                       <input 
@@ -484,6 +505,16 @@ const Admin: React.FC = () => {
                         placeholder="예: 회장, 리서치 부문장 (선택)" 
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Participation Tag (상태 태그)</label>
+                      <input 
+                        type="text" 
+                        value={currentMember.statusTag || ''} 
+                        onChange={(e) => setCurrentMember({...currentMember, statusTag: e.target.value})} 
+                        className="w-full p-3 border border-neutral-100 outline-none focus:border-brand-orange" 
+                        placeholder="예: 1기, 2기 활동 (선택)" 
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -526,7 +557,7 @@ const Admin: React.FC = () => {
                       type="button" 
                       onClick={() => {
                         setIsEditingMember(false);
-                        setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '' });
+                        setCurrentMember({ cohort: '1기', classOf: '', name: '', role: '', statusTag: '' });
                       }} 
                       className="px-8 border border-neutral-200 text-xs font-bold uppercase tracking-widest"
                     >
@@ -565,6 +596,9 @@ const Admin: React.FC = () => {
                                 <span className="text-[10px] text-neutral-400 font-mono italic">{member.classOf}</span>
                                 {member.role && (
                                   <span className="text-[10px] font-bold text-brand-orange tracking-wider bg-brand-orange/5 px-2 py-0.5 rounded uppercase">{member.role}</span>
+                                )}
+                                {member.statusTag && (
+                                  <span className="text-[10px] font-medium text-neutral-500 tracking-wider bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded">{member.statusTag}</span>
                                 )}
                               </div>
                             </div>
@@ -735,6 +769,162 @@ const Admin: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Dynamic Category Management */}
+              <div className="space-y-6 pt-6 border-t border-neutral-100">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">Research Categories</h3>
+                </div>
+                <div className="space-y-4">
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Dynamically manage categories for research reports. Changing these updates the portfolio tabs and filters instantly.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Add Category Form */}
+                    <div className="p-4 border border-neutral-100 space-y-4 rounded bg-neutral-50/20">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-500">Add New Category</h4>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block">English Slug (e.g. open-study)</label>
+                        <input 
+                          type="text" 
+                          id="new-category-slug"
+                          className="w-full p-2 text-xs border border-neutral-150 outline-none focus:border-brand-orange bg-white" 
+                          placeholder="open-study"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block">Display Name (e.g. Open Studies)</label>
+                        <input 
+                          type="text" 
+                          id="new-category-name"
+                          className="w-full p-2 text-xs border border-neutral-150 outline-none focus:border-brand-orange bg-white" 
+                          placeholder="Open Studies"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const slugEl = document.getElementById('new-category-slug') as HTMLInputElement;
+                          const nameEl = document.getElementById('new-category-name') as HTMLInputElement;
+                          if (slugEl && nameEl && slugEl.value.trim() && nameEl.value.trim()) {
+                            const cats = [...currentCategories];
+                            const inputSlug = slugEl.value.trim();
+                            const inputName = nameEl.value.trim();
+                            if (cats.some(c => c.slug === inputSlug)) {
+                              alert('Category with this slug already exists!');
+                              return;
+                            }
+                            cats.push({ slug: inputSlug, name: inputName });
+                            setSiteSettings({...siteSettings, categories: cats});
+                            slugEl.value = '';
+                            nameEl.value = '';
+                          } else {
+                            alert('Please enter both category slug and display name.');
+                          }
+                        }}
+                        className="w-full py-2.5 bg-brand-charcoal hover:bg-brand-orange text-white text-[10px] font-bold uppercase tracking-wider transition-colors rounded"
+                      >
+                        Add Category
+                      </button>
+                    </div>
+
+                    {/* Categories List */}
+                    <div className="p-4 border border-neutral-100 space-y-3 rounded bg-neutral-50/20 max-h-72 overflow-y-auto">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-500">Existing Categories</h4>
+                      {currentCategories.map((cat: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-white border border-neutral-150 text-xs rounded shadow-sm">
+                          <div>
+                            <span className="font-semibold text-neutral-700">{cat.name}</span>
+                            <span className="ml-2 text-[9px] font-mono text-neutral-400">({cat.slug})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete category "${cat.name}"?`)) {
+                                const cats = currentCategories.filter((_, i) => i !== idx);
+                                setSiteSettings({...siteSettings, categories: cats});
+                              }
+                            }}
+                            className="text-neutral-300 hover:text-red-500 transition-colors p-1"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Cohort Metadata Management */}
+              <div className="space-y-6 pt-6 border-t border-neutral-100">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-orange">Cohort Metadata & Active Status</h3>
+                </div>
+                <div className="space-y-4">
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Configure active cohorts (expanded by default) and specify custom activity periods or far-right tags showing active span.
+                  </p>
+                  <div className="space-y-4">
+                    {uniqueCohorts.map((cohortName) => {
+                      const meta = siteSettings.cohortMetadata?.[cohortName] || {
+                        isActive: cohortName === '1기' || cohortName === '2기',
+                        period: cohortName === '1기' ? '25.09~26.02' : '',
+                        statusTag: (cohortName === '1기' || cohortName === '2기') ? '1기, 2기 활동' : ''
+                      };
+
+                      const updateCohortMeta = (fields: Partial<typeof meta>) => {
+                        const nextMetadata = { ...(siteSettings.cohortMetadata || {}) };
+                        nextMetadata[cohortName] = { ...meta, ...fields };
+                        setSiteSettings({ ...siteSettings, cohortMetadata: nextMetadata });
+                      };
+
+                      return (
+                        <div key={cohortName} className="p-4 border border-neutral-150 bg-neutral-50/30 rounded space-y-4">
+                          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-100 pb-2">
+                            <span className="text-sm font-semibold text-brand-charcoal">{cohortName} Cohort</span>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input 
+                                type="checkbox" 
+                                checked={meta.isActive}
+                                onChange={(e) => updateCohortMeta({ isActive: e.target.checked })}
+                                className="w-4 h-4 accent-brand-orange cursor-pointer"
+                              />
+                              <span className="text-xs font-medium text-neutral-600">현재 활동 기수 (Currently Active)</span>
+                            </label>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block">Activity Period (활동 기간)</label>
+                              <input 
+                                type="text" 
+                                value={meta.period || ''}
+                                onChange={(e) => updateCohortMeta({ period: e.target.value })}
+                                className="w-full p-2 text-xs border border-neutral-150 outline-none focus:border-brand-orange bg-white"
+                                placeholder="예: 25.09~26.02"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block">Status Tag Badge (상태 태그 / 오른쪽 표시)</label>
+                              <input 
+                                type="text" 
+                                value={meta.statusTag || ''}
+                                onChange={(e) => updateCohortMeta({ statusTag: e.target.value })}
+                                className="w-full p-2 text-xs border border-neutral-150 outline-none focus:border-brand-orange bg-white"
+                                placeholder="예: 1기, 2기 활동"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {uniqueCohorts.length === 0 && (
+                      <p className="text-xs italic text-neutral-400">No cohorts found. Add members to a cohort first to manage metadata here.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -43,27 +43,50 @@ export const ReportCover = ({ imageUrl, pdfUrl, title }: { imageUrl?: string; pd
 const Portfolio = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<ReportCategory>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [categories, setCategories] = useState<{ slug: string; name: string }[]>([
+    { slug: 'All', name: 'All' },
+    { slug: 'Equity Research', name: 'Equity Research' },
+    { slug: 'Biotech Strategy & Deals', name: 'Biotech Strategy & Deals' },
+    { slug: 'Macro & Markets', name: 'Macro & Markets' },
+    { slug: 'open-study', name: 'Open Studies' }
+  ]);
 
   useEffect(() => {
-    const fetchReports = async () => {
+    const loadSettingsAndReports = async () => {
       try {
-        const data = await dataService.getReports();
-        setReports(data);
+        const [reportsData, settingsData] = await Promise.all([
+          dataService.getReports(),
+          dataService.getSettings()
+        ]);
+        setReports(reportsData);
+        if (settingsData.categories && settingsData.categories.length > 0) {
+          const loadedCats = settingsData.categories.map(c => 
+            typeof c === 'string' ? { slug: c, name: c } : c
+          );
+          const hasAll = loadedCats.some(c => c.slug === 'All');
+          if (!hasAll) {
+            setCategories([{ slug: 'All', name: 'All' }, ...loadedCats]);
+          } else {
+            setCategories(loadedCats);
+          }
+        }
       } catch (error) {
-        console.error("Failed to fetch reports:", error);
+        console.error("Failed to fetch portfolio data:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchReports();
+    loadSettingsAndReports();
   }, []);
 
-  const categories: ReportCategory[] = ['All', 'Equity Research', 'Biotech Strategy & Deals', 'Macro & Markets'];
-
-  const filteredReports = selectedCategory === 'All' 
+  const filteredReports = (selectedCategory === 'All' 
     ? reports 
-    : reports.filter(report => report.category === selectedCategory);
+    : reports.filter(report => {
+        const catObj = categories.find(c => c.slug === selectedCategory);
+        return report.category === selectedCategory || (catObj && report.category === catObj.name) || (catObj && report.category === catObj.slug);
+      })
+  ).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="animate-in fade-in duration-700 pb-32">
@@ -80,15 +103,15 @@ const Portfolio = () => {
       <section className="max-w-7xl mx-auto px-6 py-12 flex flex-wrap justify-center gap-3">
         {categories.map((category) => (
           <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
+            key={category.slug}
+            onClick={() => setSelectedCategory(category.slug)}
             className={`px-6 py-2.5 text-xs font-semibold tracking-wider uppercase border rounded-full transition-all duration-300 ${
-              selectedCategory === category
+              selectedCategory === category.slug
                 ? 'bg-brand-charcoal border-brand-charcoal text-white shadow-sm'
                 : 'bg-white border-neutral-200 text-neutral-500 hover:text-brand-charcoal hover:border-brand-charcoal'
             }`}
           >
-            {category}
+            {category.name}
           </button>
         ))}
       </section>
@@ -126,7 +149,7 @@ const Portfolio = () => {
                       {report.title}
                     </h3>
                     {report.subtitle && (
-                      <p className="text-xs text-neutral-400 font-light italic">{report.subtitle}</p>
+                      <p className="text-sm text-neutral-400 font-light italic">{report.subtitle}</p>
                     )}
                   </div>
                   <p className="text-sm text-neutral-500 font-light line-clamp-3 leading-relaxed">
@@ -135,7 +158,7 @@ const Portfolio = () => {
                   
                   {/* Detailed summary details displayed flattened on card */}
                   <div className="pt-4 border-t border-neutral-50 space-y-3">
-                    <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                    <div className="flex items-center justify-between text-xs text-neutral-400">
                       <span className="font-medium italic">Author: {report.author}</span>
                     </div>
                     {report.keyThesis && (

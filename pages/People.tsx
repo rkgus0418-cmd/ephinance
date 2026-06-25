@@ -7,31 +7,43 @@ const People = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCohorts, setExpandedCohorts] = useState<{ [key: string]: boolean }>({});
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
-    const fetchMembers = async () => {
+    const fetchMembersAndSettings = async () => {
       try {
-        const data = await dataService.getMembers();
-        setMembers(data);
+        const [membersData, settingsData] = await Promise.all([
+          dataService.getMembers(),
+          dataService.getSettings()
+        ]);
+        setMembers(membersData);
+        setSettings(settingsData);
         
-        // Group temporarily to expand the newest cohort automatically
-        const grouped = data.reduce((acc: { [key: string]: Member[] }, member) => {
+        // Group members by cohort to find which ones exist
+        const grouped = membersData.reduce((acc: { [key: string]: Member[] }, member) => {
           if (!acc[member.cohort]) acc[member.cohort] = [];
           acc[member.cohort].push(member);
           return acc;
         }, {});
-        
-        const sortedKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-        if (sortedKeys.length > 0) {
-          setExpandedCohorts({ [sortedKeys[0]]: true });
-        }
+
+        const initialExpanded: { [key: string]: boolean } = {};
+        Object.keys(grouped).forEach(cohortKey => {
+          const cohortMeta = settingsData.cohortMetadata?.[cohortKey];
+          if (cohortMeta) {
+            initialExpanded[cohortKey] = !!cohortMeta.isActive;
+          } else {
+            // Default fallback: 1기 and 2기 are expanded by default
+            initialExpanded[cohortKey] = (cohortKey === '1기' || cohortKey === '2기');
+          }
+        });
+        setExpandedCohorts(initialExpanded);
       } catch (error) {
-        console.error("Failed to fetch members:", error);
+        console.error("Failed to fetch members and settings:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchMembers();
+    fetchMembersAndSettings();
   }, []);
 
   // Group members by cohort
@@ -41,8 +53,14 @@ const People = () => {
     return acc;
   }, {});
 
-  // Sort cohort keys (e.g., "2기", "1기")
-  const sortedCohortKeys = Object.keys(cohorts).sort((a, b) => b.localeCompare(a));
+  // Extract digits for a clean, logical numerical sort (e.g., 1기, 2기, 3기, 10기)
+  const getCohortNumber = (cohort: string): number => {
+    const match = cohort.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
+  // Sort cohort keys ascendingly: 1기, 2기, 3기, etc.
+  const sortedCohortKeys = Object.keys(cohorts).sort((a, b) => getCohortNumber(a) - getCohortNumber(b));
 
   const toggleCohort = (cohortKey: string) => {
     setExpandedCohorts(prev => ({
@@ -73,6 +91,15 @@ const People = () => {
           const isExpanded = !!expandedCohorts[cohortKey];
           const memberCount = cohorts[cohortKey].length;
 
+          const cohortMeta = settings?.cohortMetadata?.[cohortKey];
+          
+          // Use DB values if present, otherwise fall back to defaults
+          let cohortPeriod = cohortMeta?.period;
+          if (cohortPeriod === undefined || cohortPeriod === '') {
+            if (cohortKey === '1기') cohortPeriod = '25.09~26.02';
+            else cohortPeriod = '';
+          }
+
           return (
             <section key={cohortKey} className="max-w-4xl mx-auto px-6">
               {/* Accordion Toggle Card Bar */}
@@ -88,6 +115,14 @@ const People = () => {
                   <span className={`text-lg font-light tracking-wide transition-colors duration-300 ${isExpanded ? 'text-brand-orange font-normal' : 'text-brand-charcoal'}`}>
                     {cohortKey}
                   </span>
+                  
+                  {/* Dynamic Activity Period next to the title */}
+                  {cohortPeriod && (
+                    <span className="text-neutral-400 text-xs font-light font-mono">
+                      ({cohortPeriod})
+                    </span>
+                  )}
+
                   <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full transition-all duration-300 ${
                     isExpanded 
                       ? 'bg-brand-orange/10 text-brand-orange'
@@ -96,15 +131,17 @@ const People = () => {
                     {memberCount} Researchers
                   </span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-neutral-400 font-medium tracking-widest uppercase transition-colors duration-300 group-hover:text-brand-charcoal">
-                    {isExpanded ? 'Collapse' : 'Expand'}
-                  </span>
-                  <span className={`text-neutral-400 transition-transform duration-300 ${
-                    isExpanded ? 'rotate-180 text-brand-orange' : 'group-hover:text-brand-charcoal'
-                  }`}>
-                    <ChevronDown size={18} />
-                  </span>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] text-neutral-400 font-medium tracking-widest uppercase transition-colors duration-300 group-hover:text-brand-charcoal">
+                      {isExpanded ? 'Collapse' : 'Expand'}
+                    </span>
+                    <span className={`text-neutral-400 transition-transform duration-300 ${
+                      isExpanded ? 'rotate-180 text-brand-orange' : 'group-hover:text-brand-charcoal'
+                    }`}>
+                      <ChevronDown size={18} />
+                    </span>
+                  </div>
                 </div>
               </button>
 
@@ -133,9 +170,16 @@ const People = () => {
                         </div>
                       )}
                       <div className="flex flex-col">
-                        <span className="text-base font-light text-brand-charcoal">
-                          {member.name}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-base font-light text-brand-charcoal">
+                            {member.name}
+                          </span>
+                          {member.statusTag && (
+                            <span className="text-[9px] font-medium tracking-wide px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded border border-neutral-200">
+                              {member.statusTag}
+                            </span>
+                          )}
+                        </div>
                         {member.role && (
                           <span className="text-[9px] text-brand-orange font-bold tracking-wider uppercase mt-0.5">
                             {member.role}

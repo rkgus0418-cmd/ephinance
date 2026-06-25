@@ -23,7 +23,16 @@ const Home = () => {
     fetchReports();
   }, []);
 
-  const visibleReports = reports.filter(r => r.isMainVisible !== false);
+  const visibleReports = reports
+    .filter(r => r.isMainVisible !== false)
+    .sort((a, b) => {
+      const orderA = a.order !== undefined ? a.order : 999999;
+      const orderB = b.order !== undefined ? b.order : 999999;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return b.date.localeCompare(a.date);
+    });
 
   return (
     <div className="animate-in fade-in duration-1000">
@@ -104,15 +113,15 @@ const Home = () => {
                         {report.title}
                       </h3>
                       {report.subtitle && (
-                        <p className="text-xs text-neutral-400 font-light italic">{report.subtitle}</p>
+                        <p className="text-sm text-neutral-400 font-light italic">{report.subtitle}</p>
                       )}
                     </div>
                     <p className="text-sm text-neutral-500 font-light line-clamp-3 leading-relaxed">
-                      {report.subtitle || report.executiveSummary}
+                      {report.executiveSummary}
                     </p>
                     
                     <div className="pt-4 border-t border-neutral-50 space-y-3">
-                      <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                      <div className="flex items-center justify-between text-xs text-neutral-400">
                         <span className="font-medium italic">Author: {report.author}</span>
                       </div>
                       {report.keyThesis && (

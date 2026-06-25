@@ -1,5 +1,46 @@
 
-export type ReportCategory = 'All' | 'Equity Research' | 'Biotech Strategy & Deals' | 'Macro & Markets';
+export type ReportCategory = string;
+
+export interface CohortMetadata {
+  isActive: boolean;
+  period?: string;
+  statusTag?: string;
+}
+
+export interface SiteSettings {
+  logoUrl?: string;
+  recruitmentTitle?: string;
+  recruitmentDate?: string;
+  recruitmentApplyUrl?: string;
+  recruitSectionTitle?: string;
+  recruitGuideNote?: string;
+  requirements?: string;
+  recruitFooterWarning?: string;
+  aboutContent?: {
+    pipelineTitle?: string;
+    pipelineDesc?: string;
+    clinicalTitle?: string;
+    clinicalDesc?: string;
+    licensingTitle?: string;
+    licensingDesc?: string;
+    disciplineTitle?: string;
+    disciplineDesc?: string;
+  };
+  curriculumContent?: {
+    phases?: Array<{
+      title: string;
+      desc: string;
+      details: string;
+    }>;
+  };
+  categories?: Array<{
+    slug: string;
+    name: string;
+  }>;
+  cohortMetadata?: {
+    [cohortKey: string]: CohortMetadata;
+  };
+}
 
 export interface Report {
   id: string;
@@ -30,6 +71,7 @@ export interface Member {
   role?: string;
   imageUrl?: string;
   order?: number;
+  statusTag?: string;
 }
 
 export interface Insight {
